@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="NEC Contract Option C/D Contractor's Share Calculator">
+    <meta name="theme-color" content="#4F46E5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Contractor Share">
+    <title>Contractor's Share Calculator</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🧮</text></svg>">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkNvbnRyYWN0b3IncyBTaGFyZSBDYWxjdWxhdG9yIiwKICAic2hvcnRfbmFtZSI6ICJDb250cmFjdG9yIFNoYXJlIiwKICAiZGVzY3JpcHRpb24iOiAiTkVDIENvbnRyYWN0IE9wdGlvbiBDL0QgUGFpbi9HYWluIENhbGN1bGF0b3IiLAogICJzdGFydF91cmwiOiAiLiIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiI2ZmZmZmZiIsCiAgInRoZW1lX2NvbG9yIjogIiM0RjQ2RTUiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJkYXRhOmltYWdlL3N2Zyt4bWwsPHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMDAgMTAwJz48dGV4dCB5PScwLjllbScgZm9udC1zaXplPSc5MCc+8J+nruKAjTwvdGV4dD48L3N2Zz4iLAogICAgICAic2l6ZXMiOiAiNTEyeDUxMiIsCiAgICAgICJ0eXBlIjogImltYWdlL3N2Zyt4bWwiCiAgICB9CiAgXQp9">
+    
+    <!-- React and Babel -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overscroll-behavior: none;
+        }
+        
+        /* Prevent pull-to-refresh */
+        html, body {
+            overflow: auto;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #root {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Remove spinner from number inputs */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        // Icon components using Lucide
+        const Calculator = () => <i data-lucide="calculator"></i>;
+        const Settings = () => <i data-lucide="settings"></i>;
+        const TrendingDown = () => <i data-lucide="trending-down"></i>;
+        const TrendingUp = () => <i data-lucide="trending-up"></i>;
+        
+        function ContractorShareCalculator() {
+          const [targetPrice, setTargetPrice] = useState('');
+          const [pwdd, setPwdd] = useState('');
+          const [showSettings, setShowSettings] = useState(false);
+          const [shareRanges, setShareRanges] = useState([
+            { min: 0, max: 79, share: 0, label: 'Less than 79%' },
+            { min: 80, max: 109, share: 50, label: '80% to 109%' },
+            { min: 110, max: 119, share: 75, label: '110% to 119%' },
+            { min: 120, max: Infinity, share: 100, label: 'Greater than 120%' }
+          ]);
+          const [result, setResult] = useState(null);
+
+          const calculateContractorShare = () => {
+            const target = parseFloat(targetPrice);
+            const pwddValue = parseFloat(pwdd);
+
+            if (isNaN(target) || isNaN(pwddValue) || target <= 0) {
+              setResult(null);
+              return;
+            }
+
+            const difference = pwddValue - target;
+            const performancePercentage = (pwddValue / target) * 100;
+            
+            let contractorShare = 0;
+            let breakdown = [];
+
+            if (pwddValue < target) {
+              // Saving scenario - entire difference at one rate
+              const applicableRange = shareRanges.find(
+                range => performancePercentage >= range.min && performancePercentage <= range.max
+              );
+              
+              if (applicableRange) {
+                contractorShare = Math.abs(difference) * (applicableRange.share / 100);
+                breakdown.push({
+                  range: applicableRange.label,
+                  amount: Math.abs(difference),
+                  sharePercentage: applicableRange.share,
+                  shareAmount: contractorShare
+                });
+              } else {
+                // No applicable range found (shouldn't happen with proper ranges)
+                breakdown.push({
+                  range: 'No applicable range',
+                  amount: Math.abs(difference),
+                  sharePercentage: 0,
+                  shareAmount: 0
+                });
+              }
+            } else {
+              // Pain scenario - split by ranges starting from 100%
+              // Calculate increments through each range from 100% up to actual performance
+              
+              for (let i = 0; i < shareRanges.length; i++) {
+                const range = shareRanges[i];
+                
+                // Skip ranges below 80% for excess calculations
+                if (range.max < 80) continue;
+                
+                // Determine the start and end of this range for our calculation
+                let rangeStart = Math.max(range.min, 80); // Start at 80% minimum for excess
+                let rangeEnd = range.max === Infinity ? performancePercentage : Math.min(range.max, performancePercentage);
+                
+                // Only process if performance percentage reaches into this range
+                if (performancePercentage > rangeStart) {
+                  // Calculate the increment of PWDD that falls within this range
+                  let lowerBound = Math.max(rangeStart, 100); // Start from 100% (target) for excess
+                  let upperBound = Math.min(rangeEnd, performancePercentage);
+                  
+                  if (upperBound > lowerBound) {
+                    // Increment amount = span of percentage × target price
+                    let incrementAmount = ((upperBound - lowerBound) / 100) * target;
+                    let shareForIncrement = incrementAmount * (range.share / 100);
+                    
+                    contractorShare += shareForIncrement;
+                    
+                    breakdown.push({
+                      range: `${lowerBound.toFixed(0)}% to ${upperBound.toFixed(0)}%`,
+                      amount: incrementAmount,
+                      sharePercentage: range.share,
+                      shareAmount: shareForIncrement
+                    });
+                  }
+                }
+              }
+            }
+
+            setResult({
+              difference: Math.abs(difference),
+              isSaving: pwddValue < target,
+              performancePercentage,
+              contractorShare,
+              breakdown
+            });
+          };
+
+          useEffect(() => {
+            calculateContractorShare();
+            // Initialize Lucide icons
+            if (window.lucide) {
+              window.lucide.createIcons();
+            }
+          }, [targetPrice, pwdd, shareRanges]);
+
+          const updateShareRange = (index, field, value) => {
+            const newRanges = [...shareRanges];
+            newRanges[index][field] = field === 'share' ? parseFloat(value) || 0 : value;
+            setShareRanges(newRanges);
+          };
+
+          const formatCurrency = (value) => {
+            return new Intl.NumberFormat('en-GB', {
+              style: 'currency',
+              currency: 'GBP',
+              minimumFractionDigits: 2
+            }).format(value);
+          };
+
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+              <div className="max-w-4xl mx-auto">
+                {/* Header */}
+                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <Calculator />
+                      <h1 className="text-2xl font-bold text-gray-800">Contractor's Share Calculator</h1>
+                    </div>
+                    <button
+                      onClick={() => setShowSettings(!showSettings)}
+                      className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <Settings className={showSettings ? 'text-indigo-600' : 'text-gray-600'} />
+                    </button>
+                  </div>
+                  <p className="text-gray-600 text-sm">NEC Contract Option C/D Pain/Gain Calculator</p>
+                </div>
+
+                {/* Settings Panel */}
+                {showSettings && (
+                  <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4">Share Range Settings</h2>
+                    <div className="space-y-4">
+                      {shareRanges.map((range, index) => (
+                        <div key={index} className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Range
+                            </label>
+                            <input
+                              type="text"
+                              value={range.label}
+                              onChange={(e) => updateShareRange(index, 'label', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Contractor's Share %
+                            </label>
+                            <input
+                              type="number"
+                              value={range.share}
+                              onChange={(e) => updateShareRange(index, 'share', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                              min="0"
+                              max="100"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Input Section */}
+                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800 mb-4">Contract Details</h2>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Target Price (£)
+                      </label>
+                      <input
+                        type="number"
+                        value={targetPrice}
+                        onChange={(e) => setTargetPrice(e.target.value)}
+                        placeholder="Enter target price"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-lg"
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Price for Work Done to Date (£)
+                      </label>
+                      <input
+                        type="number"
+                        value={pwdd}
+                        onChange={(e) => setPwdd(e.target.value)}
+                        placeholder="Enter PWDD"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-lg"
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Results Section */}
+                {result && (
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4">Calculation Results</h2>
+                    
+                    {/* Summary */}
+                    <div className={`p-6 rounded-lg mb-6 ${result.isSaving ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'}`}>
+                      <div className="flex items-center gap-3 mb-4">
+                        {result.isSaving ? <TrendingDown /> : <TrendingUp />}
+                        <div>
+                          <h3 className={`text-2xl font-bold ${result.isSaving ? 'text-green-700' : 'text-red-700'}`}>
+                            {result.isSaving ? 'SAVING' : 'PAIN'}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Performance: {result.performancePercentage.toFixed(2)}% of Target Price
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div className="bg-white p-4 rounded-lg">
+                          <p className="text-sm text-gray-600 mb-1">Total Difference</p>
+                          <p className="text-2xl font-bold text-gray-800">{formatCurrency(result.difference)}</p>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg">
+                          <p className="text-sm text-gray-600 mb-1">
+                            Contractor {result.isSaving ? 'Receives' : 'Pays'}
+                          </p>
+                          <p className={`text-2xl font-bold ${result.isSaving ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(result.contractorShare)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {((result.contractorShare / result.difference) * 100).toFixed(2)}% of difference
+                          </p>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg">
+                          <p className="text-sm text-gray-600 mb-1">Amount Due</p>
+                          <p className="text-2xl font-bold text-indigo-600">
+                            {formatCurrency(result.isSaving ? parseFloat(pwdd) + result.contractorShare : parseFloat(pwdd) - result.contractorShare)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            PWDD {result.isSaving ? '+' : '−'} Contractor's Share
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Breakdown */}
+                    <div className="space-y-3">
+                      <h3 className="font-semibold text-gray-800 mb-3">Calculation Breakdown</h3>
+                      {result.breakdown.map((item, index) => (
+                        <div key={index} className={`p-4 rounded-lg ${result.isSaving ? 'bg-gray-50' : 'bg-gray-50 border-2 border-red-100'}`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="font-medium text-gray-700">{item.range}</span>
+                            <span className={`text-sm px-2 py-1 rounded ${result.isSaving ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700'}`}>
+                              {item.sharePercentage}% share
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-600">Increment: </span>
+                              <span className="font-medium">{formatCurrency(item.amount)}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Share: </span>
+                              <span className="font-medium">{formatCurrency(item.shareAmount)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div className="mt-6 text-center text-sm text-gray-600">
+                  <p>Based on NEC Contract Clause 53</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // Render the app
+        ReactDOM.render(<ContractorShareCalculator />, document.getElementById('root'));
+    </script>
+    
+    <script>
+        // Service Worker for offline functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('data:application/javascript;base64,Y29uc3QgQ0FDSEVfTkFNRSA9ICdjb250cmFjdG9yLXNoYXJlLXYxJzsNCg0Kc2VsZi5hZGRFdmVudExpc3RlbmVyKCdpbnN0YWxsJywgZXZlbnQgPT4gew0KICBldmVudC53YWl0VW50aWwoY2FjaGVzLm9wZW4oQ0FDSEVfTkFNRSkpOw0KfSk7DQoNCnNlbGYuYWRkRXZlbnRMaXN0ZW5lcignZmV0Y2gnLCBldmVudCA9PiB7DQogIGV2ZW50LnJlc3BvbmRXaXRoKA0KICAgIGNhY2hlcy5tYXRjaChldmVudC5yZXF1ZXN0KS50aGVuKHJlc3BvbnNlID0+IHsNCiAgICAgIHJldHVybiByZXNwb25zZSB8fCBmZXRjaChldmVudC5yZXF1ZXN0KTsNCiAgICB9KQ0KICApOw0KfSk7')
+                    .catch(() => console.log('Service worker registration failed'));
+            });
+        }
+        
+        // Initialize Lucide icons
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+</html>
